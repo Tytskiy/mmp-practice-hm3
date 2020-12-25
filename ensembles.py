@@ -6,7 +6,7 @@ from sklearn.metrics import mean_squared_error
 
 
 class RandomForestMSE:
-    def __init__(self, n_estimators, max_depth=None, feature_subsample_size=None,
+    def __init__(self, n_estimators=30, max_depth=None, feature_subsample_size=None,
                  bootstrap_size=None, **trees_parameters):
         """
         n_estimators : int
@@ -29,24 +29,30 @@ class RandomForestMSE:
         self.feature_indexs = None
         self.obj_indexs = None
 
+    def recommend_bootstrap_size(self, size):
+        return size
+
+    def recommend_feature_size(self, size):
+        return size//3
+
     def prepocessing_params(self, X):
         if self.bootstrap_size is None:
-            self.bootstrap_size = X.shape[0]
+            self.bootstrap_size = self.recommend_bootstrap_size(X.shape[0])
         else:
-            self.feature_size = self.bootstrap_size*X.shape[0]
+            self.bootstrap_size = int(self.bootstrap_size*X.shape[0])
 
         if self.feature_size is None:
-            self.feature_size = X.shape[1]//3
+            self.feature_size = self.recommend_feature_size(X.shape[1])
         else:
-            self.feature_size = self.feature_size*X.shape[1]
+            self.feature_size = int(self.feature_size*X.shape[1])
 
-        self.obj_indexs = [np.random.choice(X.shape[0], X.shape[0], replace=True)
+        self.obj_indexs = [np.random.choice(X.shape[0], self.bootstrap_size, replace=True)
                            for i in range(self.n_estimators)]
-
         self.feature_indexs = [np.random.choice(X.shape[1], self.feature_size, replace=False)
                                for i in range(self.n_estimators)]
 
     def write_score(self, X_val, y_val, scorer):
+        # В идеале надо добавлять exсeption, но лень...
         if X_val is not None and y_val is not None and scorer is not None:
             self.score.append(scorer(self.predict(X_val), y_val))
 
@@ -64,14 +70,15 @@ class RandomForestMSE:
         y_val : numpy ndarray
             Array of size n_val_objects           
         """
+
         self.prepocessing_params(X)
 
         for i in range(self.n_estimators):
             f_ind = self.feature_indexs[i]
-            obj_ind = self.feature_indexs[i]
+            obj_ind = self.obj_indexs[i]
 
             model = DecisionTreeRegressor(max_depth=self.max_depth, **self.kwargs)
-            model.fit(X[obj_ind, f_ind], y[obj_ind])
+            model.fit(X[obj_ind][:, f_ind], y[obj_ind])
 
             self.ensemble.append(model)
             self.write_score(X_val, y_val, scorer)
@@ -89,11 +96,11 @@ class RandomForestMSE:
         y_pred = np.zeros(X.shape[0])
         for f, m in zip(self.feature_indexs, self.ensemble):
             y_pred += m.predict(X[:, f])
-        return y_pred/X.shape[0]
+        return y_pred/len(self.ensemble)
 
 
 class GradientBoostingMSE:
-    def __init__(self, n_estimators, learning_rate=0.1, max_depth=5, feature_subsample_size=None,
+    def __init__(self, n_estimators, learning_rate=0.1, max_depth=3, feature_subsample_size=None,
                  **trees_parameters):
         """
         n_estimators : int
@@ -118,16 +125,20 @@ class GradientBoostingMSE:
         self.lambdas = []
         self.feature_indexs = None
 
+    def recommend_feature_size(self, size):
+        return size//3
+
     def prepocessing_params(self, X):
         if self.feature_size is None:
-            self.feature_size = X.shape[1]//3
+            self.feature_size = self.recommend_feature_size(X.shape[1])
         else:
-            self.feature_size = self.feature_size*X.shape[1]
+            self.feature_size = int(self.feature_size*X.shape[1])
 
         self.feature_indexs = [np.random.choice(X.shape[1], self.feature_size, replace=False)
                                for i in range(self.n_estimators)]
 
     def write_score(self, X_val, y_val, scorer):
+        # В идеале надо добавлять exсeption, но лень...
         if X_val is not None and y_val is not None and scorer is not None:
             self.score.append(scorer(self.predict(X_val), y_val))
 
@@ -146,21 +157,18 @@ class GradientBoostingMSE:
 
         self.lambdas.append(1)
         self.ensemble.append(model)
-        self.feature_indexs.append(None)
         self.write_score(X_val, y_val, scorer)
 
-        for i in range(self.n_estimators-1):
+        for i in range(1,self.n_estimators):
             f_ind = self.feature_indexs[i]
 
             y_pred_base = self.predict(X)
             grad = 2*(y_pred_base-y)
-
             model = DecisionTreeRegressor(max_depth=self.max_depth, **self.kwargs)
             model.fit(X[:, f_ind], -grad)
             y_pred_new = model.predict(X[:, f_ind])
             l = minimize_scalar(lambda l: mean_squared_error(y, y_pred_base+l*y_pred_new))
-
-            self.lambdas.append(self.learning_rate*l)
+            self.lambdas.append(self.learning_rate*l.x)
             self.ensemble.append(model)
             self.write_score(X_val, y_val, scorer)
 
