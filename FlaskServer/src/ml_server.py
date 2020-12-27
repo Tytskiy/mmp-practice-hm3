@@ -14,8 +14,8 @@ from wtforms import StringField, SubmitField, FileField
 
 app = Flask(__name__, template_folder='html')
 app.config['BOOTSTRAP_SERVE_LOCAL'] = True
-app.config['SECRET_KEY'] = 'hello'
-data_path = './../data'
+app.config['SECRET_KEY'] = 'super_key'
+data_path = './data'
 Bootstrap(app)
 messages = []
 
