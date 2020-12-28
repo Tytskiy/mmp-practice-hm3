@@ -12,7 +12,7 @@
     + main_server.py ядро сервера
     + models.py дублирование реализаций алгоритмов из практического задания  
 ## Docker
-Docker образ `https://hub.docker.com/repository/docker/vladtytskiy/mmp-practice-hm3`
+Docker образ https://hub.docker.com/repository/docker/vladtytskiy/mmp-practice-hm3
 1. Чтобы собрать докер образ: `docker build -t repo_name/image_name:image_tag .`
 2. Чтобы его запустить: `docker run -p 5000:5000 -v "$PWD/FlaskServer/data:/root/FlaskServer/data" --rm -i repo_name/image_name`
 ## Инструкция к применению
