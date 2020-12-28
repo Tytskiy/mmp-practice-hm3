@@ -33,7 +33,7 @@ class RandomForestMSE:
         return size
 
     def recommend_feature_size(self, size):
-        return size//3
+        return size
 
     def prepocessing_params(self, X):
         if self.bootstrap_size is None:
@@ -126,7 +126,7 @@ class GradientBoostingMSE:
         self.feature_indexs = None
 
     def recommend_feature_size(self, size):
-        return size//3
+        return size
 
     def prepocessing_params(self, X):
         if self.feature_size is None:
