@@ -2,8 +2,9 @@ import os
 import pickle
 import json
 import pandas as pd
+import numpy as np
 
-from sklearn.metrics import mean_squared_error as mse
+from sklearn.metrics import mean_squared_error
 from flask_wtf import FlaskForm
 from flask_bootstrap import Bootstrap
 from flask import Flask, request, url_for
@@ -46,6 +47,24 @@ def fit_model(type_model, params_model, path_to_train, target_name):
     model.fit(data.values, target.values)
     app.logger.info("Модель закончила обучаться!")
     return model
+
+
+def predict(path_to_test, target_name):
+    pkl_filename = "pickle_model.pkl"
+    with open(os.path.join(DATA_PATH, pkl_filename), 'rb') as file:
+        model = pickle.load(file)
+
+    data = pd.read_csv(path_to_test)
+    try:
+        target = data[target_name]
+        data.drop(target_name, inplace=True, axis=1)
+    except Exception as exc:
+        app.logger.info('Exception: {0}'.format(exc))
+        app.logger.info("Вы нехороший человек!\
+        Да, я не продумал защиту от невалидных данных ну и что!!")
+        return None
+    y_pred = model.predict(data.values)
+    return mean_squared_error(y_pred, target.values, squared=False), y_pred
 
 
 class ChoiceModelForm(FlaskForm):
@@ -91,6 +110,13 @@ class ChoiceTestDatasetForm(FlaskForm):
     ])
     field = StringField("Target name(для подсчета функции потерь)", validators=[DataRequired()])
     submit_next = SubmitField('Next')
+
+
+class ResponseForm(FlaskForm):
+    score = StringField('RMSE', validators=[DataRequired()])
+
+    submit_predict = SubmitField('Predict again')
+    submit_chse_model = SubmitField('Choose model')
 
 
 @app.route('/settings/model', methods=['GET', 'POST'])
@@ -153,7 +179,7 @@ def choice_dataset():
                 filename = secure_filename(f.filename)
 
                 f.save(os.path.join(DATA_PATH, filename))
-                app.logger.info(f"Save to data:{os.path.join(DATA_PATH, filename)}")
+                app.logger.info(f"Save train data to:{os.path.join(DATA_PATH, filename)}")
                 return redirect(url_for("training_model",
                                         type_model=type_model,
                                         params_model=params_model,
@@ -191,8 +217,32 @@ def get_predict():
         file_form = ChoiceTestDatasetForm()
 
         if file_form.validate_on_submit():
-            
-            return redirect(url_for("training_model")
+            f = file_form.file_path.data
+            filename = secure_filename(f.filename)
+
+            f.save(os.path.join(DATA_PATH, filename))
+            app.logger.info(f"Save test data to:{os.path.join(DATA_PATH, filename)}")
+
+            score, y_pred = predict(os.path.join(DATA_PATH, filename), file_form.field.data)
+            y_pred_filename = "target_predicted.csv"
+            np.savetxt(os.path.join(DATA_PATH, y_pred_filename), y_pred)
+
+            return redirect(url_for("get_score", score=score))
+        return render_template("from_form.html", form=file_form)
+    except Exception as exc:
+        app.logger.info('Exception: {0}'.format(exc))
+
+
+@ app.route("/score", methods=['GET', 'POST'])
+def get_score():
+    try:
+        file_form = ResponseForm()
+        file_form.score.data = request.args.get("score")
+        if file_form.validate_on_submit():
+            if file_form.submit_predict.data:
+                return redirect(url_for('get_predict'))
+            else:
+                return redirect(url_for('choice_model'))
         return render_template("from_form.html", form=file_form)
     except Exception as exc:
         app.logger.info('Exception: {0}'.format(exc))
