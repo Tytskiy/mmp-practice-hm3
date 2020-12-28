@@ -6,9 +6,6 @@ __pycache__/
 # user settings 
 .vscode
 #temp settings 
-wrong*/
-*.csv
-_*/
 #latex
 *.aux
 *.fls
